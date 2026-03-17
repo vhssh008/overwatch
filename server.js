@@ -20,7 +20,8 @@ io.on('connection', (socket) => {
     yaw: 0, pitch: 0,
     hp: 200,
     name: '플레이어',
-    color: 0x0088ff
+    color: 0x0088ff,
+    dead: false
   };
 
   socket.emit('currentPlayers', players);
@@ -42,22 +43,32 @@ io.on('connection', (socket) => {
   });
 
   socket.on('playerHit', (data) => {
-    if(players[data.targetId]){
-      players[data.targetId].hp -= data.damage;
-      io.emit('playerDamaged', {
-        targetId: data.targetId,
-        damage: data.damage,
-        hp: players[data.targetId].hp
+    const target = players[data.targetId];
+    if(!target || target.dead) return; // 이미 죽은 상태면 무시
+
+    target.hp -= data.damage;
+
+    io.emit('playerDamaged', {
+      targetId: data.targetId,
+      damage: data.damage,
+      hp: target.hp
+    });
+
+    if(target.hp <= 0 && !target.dead){
+      target.dead = true; // 죽음 처리 즉시 잠금
+      io.emit('playerKilled', {
+        killerId: data.shooterId,
+        killerName: data.shooterName || '???',
+        victimId: data.targetId,
+        victimName: target.name || '???'
       });
-      if(players[data.targetId].hp <= 0){
-        io.emit('playerKilled', {
-          killerId: data.shooterId,
-          killerName: data.shooterName || '???',
-          victimId: data.targetId,
-          victimName: players[data.targetId].name || '???'
-        });
-        players[data.targetId].hp = 200;
-      }
+      // 2.6초 후 리스폰
+      setTimeout(() => {
+        if(players[data.targetId]){
+          players[data.targetId].hp = 200;
+          players[data.targetId].dead = false;
+        }
+      }, 2600);
     }
   });
 

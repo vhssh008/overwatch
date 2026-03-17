@@ -361,8 +361,8 @@ function updatePlayerListFromOthers(){
 function initThree(){
   renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
   renderer.setSize(innerWidth,innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.shadowMap.enabled=true;
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled=false;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure=1.1;
@@ -462,7 +462,7 @@ function mkEnemy(){
   const eyeMat=new THREE.MeshBasicMaterial({color:0xff6600});
   const torso=new THREE.Mesh(new THREE.BoxGeometry(0.9,1.05,0.52),bodyMat);torso.position.y=0.92;torso.castShadow=true;g.add(torso);
   const head=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5),bodyMat);head.position.y=1.67;head.castShadow=true;g.add(head);
-  [-0.14,0.14].forEach(function(x){const e=new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6),eyeMat);e.position.set(x,1.69,0.26);g.add(e);});
+  [-0.14,0.14].forEach(function(x){const e=new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6),eyeMat);e.position.set(x,1.69,-0.26);g.add(e);});
   const legG=new THREE.BoxGeometry(0.32,0.88,0.32);
   const legL=new THREE.Mesh(legG,darkMat);legL.position.set(-0.25,0.44,0);legL.castShadow=true;
   const legR=new THREE.Mesh(legG,darkMat);legR.position.set(0.25,0.44,0);legR.castShadow=true;
@@ -664,7 +664,7 @@ function updatePlayer(dt){
   });
   if(np.y<1.7){np.y=1.7;pVel.y=0;onGround=true;}
   camera.position.copy(np);
-  if(socket&&socket.connected){
+  if(socket&&socket.connected&&S.time%0.05<0.017){
     socket.emit('playerMove',{x:camera.position.x,y:camera.position.y,z:camera.position.z,yaw:yaw,pitch:pitch});
   }
   if(mv.length()>0&&onGround){gunModel.position.y=-0.18+Math.sin(S.time*10)*0.025;gunModel.rotation.z=Math.sin(S.time*5)*0.02;}

@@ -19,7 +19,8 @@ io.on('connection', (socket) => {
     x: 0, y: 1.7, z: 25,
     yaw: 0, pitch: 0,
     hp: 200,
-    name: '플레이어'
+    name: '플레이어',
+    color: 0x0088ff
   };
 
   socket.emit('currentPlayers', players);
@@ -27,6 +28,10 @@ io.on('connection', (socket) => {
 
   socket.on('setName', (name) => {
     if(players[socket.id]) players[socket.id].name = name;
+  });
+
+  socket.on('setColor', (color) => {
+    if(players[socket.id]) players[socket.id].color = color;
   });
 
   socket.on('playerMove', (data) => {
@@ -51,7 +56,7 @@ io.on('connection', (socket) => {
           victimId: data.targetId,
           victimName: players[data.targetId].name || '???'
         });
-        players[data.targetId].hp = 200; // 리스폰
+        players[data.targetId].hp = 200;
       }
     }
   });

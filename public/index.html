@@ -372,7 +372,7 @@ function initThree(){
   camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,200);
   camera.position.set(0,1.7,25);
   scene.add(camera);
-  buildLights();buildMap();buildStars();buildGun();spawnEnemies(6);
+  buildLights();buildMap();buildStars();buildGun();spawnEnemies(0);
   addEventListener('resize',function(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
 }
 

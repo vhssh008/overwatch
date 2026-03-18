@@ -26,8 +26,6 @@
   #hp-text { font-family:'Orbitron',monospace; font-size:30px; font-weight:900; color:#fff; text-shadow:0 0 18px var(--neon); letter-spacing:2px; }
   .bar-wrap { width:220px; height:12px; background:rgba(255,255,255,0.07); border:1px solid var(--border); border-radius:2px; overflow:hidden; }
   #hp-bar { height:100%; width:100%; background:linear-gradient(90deg,#00b8ff,#00f5ff); border-radius:2px; transition:width 0.2s; }
-  .bar-wrap.sm { height:8px; border-color:rgba(100,180,255,0.3); margin-top:2px; }
-  #sh-bar { height:100%; width:100%; background:linear-gradient(90deg,#3377ff,#77bbff); border-radius:2px; transition:width 0.2s; }
   #ammo-box { position:absolute; bottom:30px; right:30px; text-align:right; }
   #ammo-num { font-family:'Orbitron',monospace; font-size:52px; font-weight:900; color:#fff; line-height:1; letter-spacing:-2px; text-shadow:0 0 20px rgba(255,255,255,0.25); }
   #ammo-res { font-family:'Orbitron',monospace; font-size:18px; color:rgba(255,255,255,0.32); letter-spacing:2px; }
@@ -67,7 +65,6 @@
   .hml.bl{width:8px;height:2px;background:var(--neon2);box-shadow:0 0 4px var(--neon2);bottom:-14px;left:-14px;transform:rotate(-45deg)}
   .hml.br{width:8px;height:2px;background:var(--neon2);box-shadow:0 0 4px var(--neon2);bottom:-14px;right:-14px;transform:rotate(45deg)}
   #dmg-flash { position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,0,50,0.65) 100%);opacity:0;transition:opacity 0.08s; }
-  #sh-overlay { position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 0.3s;border:3px solid transparent; }
   #dash-flash { position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,245,255,0.22) 0%,transparent 70%);opacity:0;transition:opacity 0.1s; }
   #low-hp { position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 25%,rgba(255,0,28,0.45) 100%);opacity:0;transition:opacity 0.3s; }
   @keyframes lpulse{0%,100%{opacity:0.2}50%{opacity:0.72}}
@@ -141,8 +138,6 @@
     <div id="hp-text">200</div>
     <div class="stat-label">Health</div>
     <div class="bar-wrap"><div id="hp-bar"></div></div>
-    <div style="margin-top:5px" class="stat-label">Shield</div>
-    <div class="bar-wrap sm"><div id="sh-bar"></div></div>
   </div>
   <div id="ammo-box"><div id="ammo-num">30</div><div id="ammo-res">∞</div><div id="wep-name">PULSE RIFLE</div></div>
   <div id="ult-area"><div id="ult-label">ULTIMATE CHARGE</div><div id="ult-bar-bg"><div id="ult-bar"></div></div></div>
@@ -160,7 +155,6 @@
   <div id="tab-hint">TAB — 점수판</div>
 </div>
 <div id="dmg-flash"></div>
-<div id="sh-overlay"></div>
 <div id="dash-flash"></div>
 <div id="low-hp"></div>
 <div id="vignette"></div>
@@ -215,7 +209,7 @@
     <div class="ctrl-row"><span class="ctrl-key">Q</span>궁극기</div>
     <div class="ctrl-row"><span class="ctrl-key">TAB</span>점수판</div>
   </div>
-  <div id="ver">v7.0 — NEW MAP</div>
+  <div id="ver">v7.1 — NO SHIELD</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
@@ -224,7 +218,15 @@ const canvas=document.getElementById('canvas');
 let renderer,scene,camera,socket;
 let myId=null,myName='플레이어',myColor=0x0088ff;
 const otherPlayers={},scoreData={};
-const S={hp:200,maxHp:200,shield:200,maxShield:200,ammo:30,maxAmmo:30,score:0,deaths:0,kills:0,streak:0,ult:100,reloading:false,reloadT:0,dead:false,cdShift:0,cdE:0,isADS:false,time:0,dashing:false,dashT:0,dashDir:null};
+const S={
+  hp:200,maxHp:200,
+  ammo:30,maxAmmo:30,
+  score:0,deaths:0,kills:0,streak:0,ult:100,
+  reloading:false,reloadT:0,dead:false,
+  cdShift:0,cdE:0,
+  isADS:false,time:0,
+  dashing:false,dashT:0,dashDir:null
+};
 const CD={shift:5,e:8};
 const keys={};
 let dMX=0,dMY=0,pitch=0,yaw=0,locked=false;
@@ -240,12 +242,7 @@ const charOptions=[{name:'BLUE',color:0x0088ff},{name:'RED',color:0xff2200}];
 const cards=['card-blue','card-red'];
 const FOV_NORMAL=70,FOV_ADS=28;
 const SENS_NORMAL=0.0013,SENS_ADS=0.00045;
-
-// 스폰 포인트
-const SPAWNS=[
-  new THREE.Vector3(-42,1.7,0),  // 왼쪽 스폰
-  new THREE.Vector3(42,1.7,0),   // 오른쪽 스폰
-];
+const SPAWNS=[new THREE.Vector3(-42,1.7,0),new THREE.Vector3(42,1.7,0)];
 
 function goCharSelect(){
   const v=document.getElementById('name-input').value.trim();
@@ -307,15 +304,19 @@ function initSocket(){
   socket.on('currentPlayers',function(players){Object.values(players).forEach(function(p){if(p.id!==myId){addOtherPlayer(p);if(!scoreData[p.id])scoreData[p.id]={name:p.name||p.id.slice(0,6),kills:0,deaths:0};}});updatePlayerList(players);});
   socket.on('newPlayer',function(p){addOtherPlayer(p);if(!scoreData[p.id])scoreData[p.id]={name:p.name||p.id.slice(0,6),kills:0,deaths:0};showNotif('🟢 '+(p.name||p.id.slice(0,6))+' 참전!');updatePlayerListFromOthers();});
   socket.on('playerMoved',function(p){if(otherPlayers[p.id])updateOtherPlayer(p);});
+
+  // 피격: 서버에서 계산된 실제 HP를 받음
   socket.on('playerDamaged',function(data){
+    // 내가 맞은 경우 → 서버에서 받은 HP 그대로 적용
     if(data.targetId===myId){
-      let actual=data.damage;
-      if(S.shield>0){const abs=Math.min(S.shield,data.damage*0.75);S.shield-=abs;actual=data.damage-abs;}
-      S.hp=Math.max(0,S.hp-actual);updateHpUI();showDmgFlash();
+      S.hp=Math.max(0,data.hp);
+      updateHpUI();showDmgFlash();
       if(S.hp<=0&&!S.dead)playerDie();
     }
-    if(otherPlayers[data.targetId])updateOtherHpBar(data.targetId,data.hp);
+    // 상대방 HP 업데이트
+    if(otherPlayers[data.targetId])updateOtherHpLabel(data.targetId,data.hp);
   });
+
   socket.on('playerKilled',function(data){
     addKFMulti(data.killerName||'???',data.victimName||'???');
     if(scoreData[data.killerId])scoreData[data.killerId].kills++;else scoreData[data.killerId]={name:data.killerName||'???',kills:1,deaths:0};
@@ -328,17 +329,15 @@ function initSocket(){
   socket.on('grenadeExplode',function(data){if(data.shooterId!==myId)spawnExplosionVFX(new THREE.Vector3(data.x,data.y,data.z));});
 }
 
-// HP 숫자 레이블 (머리 위)
 function makeHpLabel(hp){
   const c=document.createElement('canvas');c.width=128;c.height=48;
   const ctx=c.getContext('2d');ctx.clearRect(0,0,128,48);
   ctx.font='bold 32px Orbitron,monospace';
-  // 색 = HP에 따라
   const r=hp/200;
   if(r>0.5)ctx.fillStyle='#00ee44';
   else if(r>0.25)ctx.fillStyle='#ffaa00';
   else ctx.fillStyle='#ff3300';
-  ctx.textAlign='center';ctx.fillText(Math.ceil(hp),64,36);
+  ctx.textAlign='center';ctx.fillText(Math.ceil(Math.max(0,hp)),64,36);
   return new THREE.CanvasTexture(c);
 }
 
@@ -360,7 +359,6 @@ function makePlayerModel(name,color){
   const outlineMat=new THREE.MeshBasicMaterial({color:0xff0000,side:THREE.BackSide});
   const ot=new THREE.Mesh(new THREE.BoxGeometry(0.96,1.11,0.58),outlineMat);ot.position.y=0.92;g.add(ot);
   const oh=new THREE.Mesh(new THREE.BoxGeometry(0.56,0.56,0.56),outlineMat);oh.position.y=1.67;g.add(oh);
-  // 총
   const gunG=new THREE.Group();
   const gunBm=new THREE.MeshStandardMaterial({color:0x1a1a2e,metalness:0.92,roughness:0.15});
   const gunBody=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.07,0.36),gunBm);
@@ -378,7 +376,7 @@ function makePlayerModel(name,color){
   const nameSprite=new THREE.Sprite(new THREE.SpriteMaterial({map:nameTex,depthTest:false,transparent:true}));
   nameSprite.scale.set(2.2,0.55,1);nameSprite.position.set(0,2.9,0);nameSprite.renderOrder=101;g.add(nameSprite);
   const pl=new THREE.PointLight(color,1.5,6);pl.position.set(0,1.5,0);g.add(pl);
-  g.userData={hpSprite:hpSprite,hp:200,maxHp:200};
+  g.userData={hpSprite:hpSprite,hp:200};
   return g;
 }
 
@@ -390,12 +388,11 @@ function addOtherPlayer(p){
   scene.add(grp);otherPlayers[p.id]={group:grp,data:p,hp:p.hp||200};
 }
 function updateOtherPlayer(p){const op=otherPlayers[p.id];if(!op)return;op.data=p;op.group.position.set(p.x,0,p.z);op.group.rotation.y=p.yaw;}
-function updateOtherHpBar(id,hp){
+function updateOtherHpLabel(id,hp){
   const op=otherPlayers[id];if(!op)return;
   op.hp=hp;
-  // HP 숫자 업데이트
-  const hpTex=makeHpLabel(Math.max(0,hp));
-  op.group.userData.hpSprite.material.map=hpTex;
+  const newTex=makeHpLabel(Math.max(0,hp));
+  op.group.userData.hpSprite.material.map=newTex;
   op.group.userData.hpSprite.material.needsUpdate=true;
 }
 function updatePlayerList(players){const el=document.getElementById('player-list');el.innerHTML='';Object.values(players).forEach(function(p){const d=document.createElement('div');d.className='pl-entry'+(p.id===myId?' me':'');d.textContent=(p.id===myId?'▶ ':'')+(p.name||p.id.slice(0,6));el.appendChild(d);});}
@@ -409,14 +406,11 @@ function initThree(){
   renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
   scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x040810,0.016);scene.background=new THREE.Color(0x020508);
   camera=new THREE.PerspectiveCamera(FOV_NORMAL,innerWidth/innerHeight,0.05,200);
-  // 스폰 위치 랜덤
   const sp=SPAWNS[Math.floor(Math.random()*SPAWNS.length)];
-  camera.position.copy(sp);
-  scene.add(camera);
+  camera.position.copy(sp);scene.add(camera);
   buildLights();buildMap();buildStars();buildGun();
   addEventListener('resize',function(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
 }
-
 function buildLights(){
   scene.add(new THREE.AmbientLight(0x1a3050,5));
   const sun=new THREE.DirectionalLight(0x88aadd,2.5);sun.position.set(20,40,15);scene.add(sun);
@@ -428,150 +422,58 @@ function buildStars(){
   geo.setAttribute('position',new THREE.BufferAttribute(p,3));
   scene.add(new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:0.25,transparent:true,opacity:0.65})));
 }
-
-// ── 맵 빌드 ──────────────────────────────────────────────────
-// 맵 구성:
-// 전체 크기: X -50~50, Z -30~30
-// 좌측 스폰 (-42,0) / 우측 스폰 (42,0)
-// 중앙 2층 구조물
-// 좌우 측면 통로
-// 상/하 중간 통로
-// 계단으로 2층 연결
 function buildMap(){
   const flMat=new THREE.MeshStandardMaterial({color:0x0a1822,roughness:0.9,metalness:0.1});
   const wallMat=new THREE.MeshStandardMaterial({color:0x0c1c2c,roughness:0.85,metalness:0.2});
   const platMat=new THREE.MeshStandardMaterial({color:0x0f2535,roughness:0.7,metalness:0.3});
   const accentMat=new THREE.MeshStandardMaterial({color:0x1a3a5c,roughness:0.6,metalness:0.4});
-
   function box(w,h,d,x,y,z,mat){
     const geo=new THREE.BoxGeometry(w,h,d);
-    const m=new THREE.Mesh(geo,mat||platMat);
-    m.position.set(x,y,z);scene.add(m);
+    const m=new THREE.Mesh(geo,mat||platMat);m.position.set(x,y,z);scene.add(m);
     m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x003355,transparent:true,opacity:0.5})));
     addCol(m);return m;
   }
   function wall(w,h,d,x,y,z,mat){
-    const geo=new THREE.BoxGeometry(w,h,d);
-    const m=new THREE.Mesh(geo,mat||wallMat);
-    m.position.set(x,y,z);scene.add(m);addCol(m);return m;
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat||wallMat);m.position.set(x,y,z);scene.add(m);addCol(m);return m;
   }
-
-  // 바닥
-  const fl=new THREE.Mesh(new THREE.PlaneGeometry(110,70),flMat);
-  fl.rotation.x=-Math.PI/2;scene.add(fl);
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(110,70),flMat);fl.rotation.x=-Math.PI/2;scene.add(fl);
   scene.add(new THREE.GridHelper(110,55,0x002233,0x001525));
-
-  // 천장
   const ce=new THREE.Mesh(new THREE.PlaneGeometry(110,70),new THREE.MeshStandardMaterial({color:0x040c14,roughness:1}));
   ce.rotation.x=Math.PI/2;ce.position.y=12;scene.add(ce);
-
-  // ── 외벽 ──
-  wall(110,12,1,  0,6,-35); // 위쪽 벽
-  wall(110,12,1,  0,6, 35); // 아래쪽 벽
-  wall(1,12,70, -55,6,  0); // 왼쪽 벽
-  wall(1,12,70,  55,6,  0); // 오른쪽 벽
-
-  // ── 스폰 구역 (좌우) ──
-  // 왼쪽 스폰 구역 벽 (-42 주변)
-  wall(1,5,14, -36,2.5,-7);   // 스폰 입구 왼쪽
-  wall(1,5,14, -36,2.5, 7);   // 스폰 입구 오른쪽
-  // 오른쪽 스폰 구역 벽
-  wall(1,5,14,  36,2.5,-7);
-  wall(1,5,14,  36,2.5, 7);
-
-  // ── 좌우 측면 통로 (위/아래) ──
-  // 위쪽 통로 벽
-  wall(30,4,1, -15,2,-22,accentMat);  // 위통로 아래벽 왼
-  wall(30,4,1,  15,2,-22,accentMat);  // 위통로 아래벽 오
-  wall(30,4,1, -15,2, 22,accentMat);  // 아래통로 위벽 왼
-  wall(30,4,1,  15,2, 22,accentMat);  // 아래통로 위벽 오
-
-  // ── 중앙 구역 엄폐물 ──
-  // 중앙 메인 구조물 (2층)
-  box(14,4,14, 0,2,0,platMat);     // 중앙 1층 블록
-  box(8,8,8,   0,6,0,accentMat);   // 중앙 2층 블록 (위)
-
-  // 중앙 2층 난간 (사격 가능한 틈)
-  wall(8,1.5,1,  0,9.5,-4);   // 2층 앞 난간
-  wall(8,1.5,1,  0,9.5, 4);   // 2층 뒤 난간
-  wall(1,1.5,8, -4,9.5, 0);   // 2층 좌 난간
-  wall(1,1.5,8,  4,9.5, 0);   // 2층 우 난간
-
-  // ── 계단 (중앙 2층 연결) ──
-  // 북쪽 계단
+  wall(110,12,1,0,6,-35);wall(110,12,1,0,6,35);wall(1,12,70,-55,6,0);wall(1,12,70,55,6,0);
+  wall(1,5,14,-36,2.5,-7);wall(1,5,14,-36,2.5,7);wall(1,5,14,36,2.5,-7);wall(1,5,14,36,2.5,7);
+  wall(30,4,1,-15,2,-22,accentMat);wall(30,4,1,15,2,-22,accentMat);
+  wall(30,4,1,-15,2,22,accentMat);wall(30,4,1,15,2,22,accentMat);
+  box(14,4,14,0,2,0,platMat);
+  box(8,8,8,0,6,0,accentMat);
+  wall(8,1.5,1,0,9.5,-4);wall(8,1.5,1,0,9.5,4);wall(1,1.5,8,-4,9.5,0);wall(1,1.5,8,4,9.5,0);
   for(let i=0;i<5;i++){
-    box(4,0.8,1.2, -8,0.4+i*1.2,-4.5-i*1.2,accentMat);
-    box(4,0.8,1.2,  8,0.4+i*1.2,-4.5-i*1.2,accentMat);
+    box(4,0.8,1.2,-8,0.4+i*1.2,-4.5-i*1.2,accentMat);box(4,0.8,1.2,8,0.4+i*1.2,-4.5-i*1.2,accentMat);
+    box(4,0.8,1.2,-8,0.4+i*1.2,4.5+i*1.2,accentMat);box(4,0.8,1.2,8,0.4+i*1.2,4.5+i*1.2,accentMat);
   }
-  // 남쪽 계단
-  for(let i=0;i<5;i++){
-    box(4,0.8,1.2, -8,0.4+i*1.2, 4.5+i*1.2,accentMat);
-    box(4,0.8,1.2,  8,0.4+i*1.2, 4.5+i*1.2,accentMat);
-  }
-
-  // ── 좌측 중간 구조물 ──
-  box(6,3,2,  -22,1.5,-12,platMat);   // 왼쪽 엄폐물 위
-  box(6,3,2,  -22,1.5, 12,platMat);   // 왼쪽 엄폐물 아래
-  box(2,6,6,  -28,3,  0,accentMat);   // 왼쪽 세로 기둥
-  // 왼쪽 작은 플랫폼
-  box(4,4,4,  -20,2, 0,platMat);
-
-  // ── 우측 중간 구조물 ──
-  box(6,3,2,   22,1.5,-12,platMat);
-  box(6,3,2,   22,1.5, 12,platMat);
-  box(2,6,6,   28,3,  0,accentMat);
-  box(4,4,4,   20,2,  0,platMat);
-
-  // ── 위아래 통로 엄폐물 ──
-  box(3,2,3,   0,1,-18,platMat);
-  box(3,2,3,   0,1, 18,platMat);
-  box(3,2,3, -10,1,-18,platMat);
-  box(3,2,3,  10,1,-18,platMat);
-  box(3,2,3, -10,1, 18,platMat);
-  box(3,2,3,  10,1, 18,platMat);
-
-  // ── 좌우 통로 엄폐물 ──
-  box(2,3,3,  -14,1.5,0,platMat);
-  box(2,3,3,   14,1.5,0,platMat);
-
-  // ── 2층으로 올라가는 좌우 작은 계단 (외부) ──
-  // 왼쪽 플랫폼 계단
+  box(6,3,2,-22,1.5,-12,platMat);box(6,3,2,-22,1.5,12,platMat);box(2,6,6,-28,3,0,accentMat);box(4,4,4,-20,2,0,platMat);
+  box(6,3,2,22,1.5,-12,platMat);box(6,3,2,22,1.5,12,platMat);box(2,6,6,28,3,0,accentMat);box(4,4,4,20,2,0,platMat);
+  box(3,2,3,0,1,-18,platMat);box(3,2,3,0,1,18,platMat);
+  box(3,2,3,-10,1,-18,platMat);box(3,2,3,10,1,-18,platMat);
+  box(3,2,3,-10,1,18,platMat);box(3,2,3,10,1,18,platMat);
+  box(2,3,3,-14,1.5,0,platMat);box(2,3,3,14,1.5,0,platMat);
   for(let i=0;i<3;i++){
-    box(3,0.8,1.5, -20,0.4+i*1.2,-4-i*1.5,accentMat);
-    box(3,0.8,1.5, -20,0.4+i*1.2, 4+i*1.5,accentMat);
+    box(3,0.8,1.5,-20,0.4+i*1.2,-4-i*1.5,accentMat);box(3,0.8,1.5,-20,0.4+i*1.2,4+i*1.5,accentMat);
+    box(3,0.8,1.5,20,0.4+i*1.2,-4-i*1.5,accentMat);box(3,0.8,1.5,20,0.4+i*1.2,4+i*1.5,accentMat);
   }
-  // 오른쪽 플랫폼 계단
-  for(let i=0;i<3;i++){
-    box(3,0.8,1.5,  20,0.4+i*1.2,-4-i*1.5,accentMat);
-    box(3,0.8,1.5,  20,0.4+i*1.2, 4+i*1.5,accentMat);
-  }
-
-  // ── 네온 라인 ──
-  [
-    [[-54,0.02,-34],[54,0.02,-34],0x00f5ff],
-    [[-54,0.02, 34],[54,0.02, 34],0x00f5ff],
-    [[-54,0.02,  0],[54,0.02,  0],0xff4d6d],
-    [[  0,0.02,-34],[0,0.02,  34],0x8844ff],
-  ].forEach(function(v){
+  [[[-54,0.02,-34],[54,0.02,-34],0x00f5ff],[[-54,0.02,34],[54,0.02,34],0x00f5ff],[[-54,0.02,0],[54,0.02,0],0xff4d6d],[[0,0.02,-34],[0,0.02,34],0x8844ff]].forEach(function(v){
     const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(v[0][0],v[0][1],v[0][2]),new THREE.Vector3(v[1][0],v[1][1],v[1][2])]);
     scene.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:v[2]})));
   });
-
-  // ── 기둥 조명 ──
-  const pillarPositions=[[-45,0,-28],[-45,0,28],[45,0,-28],[45,0,28],[-20,0,-28],[20,0,-28],[-20,0,28],[20,0,28]];
-  pillarPositions.forEach(function(pos,i){
+  [[-45,0,-28],[-45,0,28],[45,0,-28],[45,0,28],[-20,0,-28],[20,0,-28],[-20,0,28],[20,0,28]].forEach(function(pos,i){
     const pi=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,10,8),new THREE.MeshStandardMaterial({color:0x0f2030,metalness:0.7,roughness:0.35}));
     pi.position.set(pos[0],5,pos[2]);scene.add(pi);addCol(pi);
     const pl=new THREE.PointLight(i%2===0?0x00f5ff:0xff4d6d,2,16);pl.position.set(pos[0],9,pos[2]);scene.add(pl);
   });
-
-  // 스폰 포인트 표시 (빛)
-  const spLight1=new THREE.PointLight(0xff2200,3,8);spLight1.position.set(-42,1,0);scene.add(spLight1);
-  const spLight2=new THREE.PointLight(0xff2200,3,8);spLight2.position.set(42,1,0);scene.add(spLight2);
+  const s1=new THREE.PointLight(0xff2200,3,8);s1.position.set(-42,1,0);scene.add(s1);
+  const s2=new THREE.PointLight(0xff2200,3,8);s2.position.set(42,1,0);scene.add(s2);
 }
-
 function addCol(mesh){collidables.push({box:new THREE.Box3().setFromObject(mesh),mesh:mesh});}
-
 function buildGun(){
   const root=new THREE.Group();camera.add(root);
   const bm=new THREE.MeshStandardMaterial({color:0x1a1a2e,metalness:0.92,roughness:0.15});
@@ -591,16 +493,13 @@ function buildGun(){
   muzzleFlash.position.set(0,0.01,-0.44);gunModel.add(muzzleFlash);
   gunLight=new THREE.PointLight(0xff8820,0,3);gunLight.position.set(0,0,-0.42);gunModel.add(gunLight);
 }
-
 function spawnDecal(pos,normal){
   const dm=new THREE.MeshBasicMaterial({color:0x555555,transparent:true,opacity:0.9,depthWrite:false});
   const d=new THREE.Mesh(new THREE.CircleGeometry(0.09,8),dm);
   d.position.copy(pos).addScaledVector(normal,0.015);
   const up=new THREE.Vector3(0,1,0);if(Math.abs(normal.dot(up))<0.99)d.quaternion.setFromUnitVectors(up,normal);
-  scene.add(d);
-  setTimeout(function(){scene.remove(d);d.geometry.dispose();d.material.dispose();},5000);
+  scene.add(d);setTimeout(function(){scene.remove(d);d.geometry.dispose();d.material.dispose();},5000);
 }
-
 function spawnBullet(from,dir){
   const bmat=new THREE.MeshBasicMaterial({color:0xffee44,transparent:true,opacity:0.95});
   const bullet=new THREE.Mesh(new THREE.SphereGeometry(0.05,4,4),bmat);
@@ -609,7 +508,6 @@ function spawnBullet(from,dir){
   function anim(){bullet.position.addScaledVector(vel,0.016);dist+=speed*0.016;if(dist>80){scene.remove(bullet);bullet.geometry.dispose();bullet.material.dispose();return;}requestAnimationFrame(anim);}
   anim();
 }
-
 function doGrenade(){
   if(S.cdE>0||S.dead)return;S.cdE=CD.e;
   const fwd=new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(0,yaw,0));
@@ -626,14 +524,14 @@ function doGrenade(){
     if(gTime>=2.0){
       scene.remove(gMesh);const ePos=gMesh.position.clone();spawnExplosionVFX(ePos);
       Object.keys(otherPlayers).forEach(function(id){const op=otherPlayers[id];const dist=op.group.position.distanceTo(ePos);if(dist<5){const dmg=Math.floor(80*(1-dist/5));if(dmg>0&&socket)socket.emit('playerHit',{targetId:id,damage:dmg,shooterId:myId,shooterName:myName});}});
-      const selfDist=camera.position.distanceTo(ePos);if(selfDist<3){const dmg=Math.floor(60*(1-selfDist/3));if(dmg>0){S.hp=Math.max(0,S.hp-dmg);updateHpUI();showDmgFlash();if(S.hp<=0&&!S.dead)playerDie();}}
+      const selfDist=camera.position.distanceTo(ePos);
+      if(selfDist<3){const dmg=Math.floor(60*(1-selfDist/3));if(dmg>0){S.hp=Math.max(0,S.hp-dmg);updateHpUI();showDmgFlash();if(S.hp<=0&&!S.dead)playerDie();}}
       if(socket)socket.emit('grenadeExplode',{x:ePos.x,y:ePos.y,z:ePos.z,shooterId:myId,shooterName:myName});return;
     }
     requestAnimationFrame(animG);
   }
   animG();showNotif('💣 수류탄!');
 }
-
 function spawnExplosionVFX(pos){
   for(let i=0;i<20;i++){
     const pm=new THREE.Mesh(new THREE.SphereGeometry(0.08,4,4),new THREE.MeshBasicMaterial({color:i%2===0?0xff4400:0xffaa00,transparent:true,opacity:1}));
@@ -643,10 +541,8 @@ function spawnExplosionVFX(pos){
   const ring=new THREE.Mesh(new THREE.RingGeometry(0.2,0.6,16),new THREE.MeshBasicMaterial({color:0xff6600,side:THREE.DoubleSide,transparent:true,opacity:0.9}));
   ring.rotation.x=-Math.PI/2;ring.position.copy(pos);ring.position.y+=0.1;scene.add(ring);
   let rs=1;const ex2=function(){rs+=3;ring.scale.setScalar(rs);ring.material.opacity-=0.05;if(ring.material.opacity>0)requestAnimationFrame(ex2);else{scene.remove(ring);ring.geometry.dispose();ring.material.dispose();}};requestAnimationFrame(ex2);
-  const eLight=new THREE.PointLight(0xff6600,15,10);eLight.position.copy(pos);scene.add(eLight);
-  setTimeout(function(){scene.remove(eLight);},350);
+  const eLight=new THREE.PointLight(0xff6600,15,10);eLight.position.copy(pos);scene.add(eLight);setTimeout(function(){scene.remove(eLight);},350);
 }
-
 function fire(){
   if(S.ammo<=0||S.reloading||S.dead)return;
   S.ammo--;updateAmmoUI();
@@ -668,7 +564,8 @@ function fire(){
     const op=otherPlayers[hitPlayer];
     if(op){
       const isHead=hitPt&&hitPt.distanceTo(op.group.position.clone().setY(hitPt.y))<0.35;
-      const dmg=isHead?80:28;showHM(isHead);spawnFX(hitPt,isHead?0xffd700:0xff4422);
+      const dmg=isHead?80:28;
+      showHM(isHead);spawnFX(hitPt,isHead?0xffd700:0xff4422);
       if(isHead){const ch=document.getElementById('crosshair');ch.classList.remove('aim');ch.classList.add('headshot');setTimeout(function(){ch.classList.remove('headshot');if(S.isADS)ch.classList.add('aim');},600);}
       socket.emit('playerHit',{targetId:hitPlayer,damage:dmg,shooterId:myId,shooterName:myName});
       S.ult=Math.min(100,S.ult+9);document.getElementById('ult-bar').style.width=S.ult+'%';checkUlt();
@@ -676,7 +573,6 @@ function fire(){
   }
   if(S.ammo===0)startReload();
 }
-
 function doDash(){
   if(S.cdShift>0||S.dead||S.dashing)return;
   S.cdShift=CD.shift;S.dashing=true;S.dashT=0;
@@ -688,7 +584,6 @@ function doDash(){
   const df=document.getElementById('dash-flash');df.style.opacity='0.7';setTimeout(function(){df.style.opacity='0';},200);
   showNotif('💨 DASH');
 }
-
 function doUlt(){
   if(S.ult<100||S.dead)return;S.ult=0;
   document.getElementById('ult-bar').style.width='0%';document.getElementById('ab-q').classList.remove('ab-ready');
@@ -699,10 +594,8 @@ function doUlt(){
   ring.rotation.x=-Math.PI/2;ring.position.copy(camera.position);ring.position.y=0.15;scene.add(ring);
   let rs=1;const ex=function(){rs+=2.8;ring.scale.setScalar(rs);ring.material.opacity-=0.035;if(ring.material.opacity>0)requestAnimationFrame(ex);else{scene.remove(ring);ring.geometry.dispose();ring.material.dispose();}};requestAnimationFrame(ex);
 }
-
 function startReload(){if(S.reloading||S.ammo===S.maxAmmo)return;S.reloading=true;S.reloadT=1.6;document.getElementById('reload-txt').style.opacity='1';gunModel.rotation.x=0.28;}
 function finishReload(){S.ammo=S.maxAmmo;S.reloading=false;gunModel.rotation.x=0;document.getElementById('reload-txt').style.opacity='0';updateAmmoUI();}
-
 function spawnFX(pos,col){
   for(let i=0;i<6;i++){
     const pm=new THREE.Mesh(new THREE.SphereGeometry(0.04,4,4),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:1}));
@@ -718,12 +611,10 @@ function updateParticles(dt){
     p.mesh.position.addScaledVector(p.vel,dt);const r=p.life/p.max;p.mesh.material.opacity=r;p.mesh.scale.setScalar(r);
   }
 }
-
 function updatePlayer(dt){
   if(S.dead)return;
   if(document.pointerLockElement===canvas){
-    yaw-=dMX*(S.isADS?SENS_ADS:SENS_NORMAL);
-    pitch-=dMY*(S.isADS?SENS_ADS:SENS_NORMAL);
+    yaw-=dMX*(S.isADS?SENS_ADS:SENS_NORMAL);pitch-=dMY*(S.isADS?SENS_ADS:SENS_NORMAL);
     pitch=Math.max(-1.45,Math.min(1.45,pitch));dMX=0;dMY=0;
   }
   camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;
@@ -741,12 +632,10 @@ function updatePlayer(dt){
   }
   pVel.y+=GRAV*dt;if(onGround)pVel.y=Math.max(0,pVel.y);
   if(keys['Space']&&onGround){pVel.y=JUMP;onGround=false;}
-
   let nx=camera.position.x+pVel.x*dt;
   let nz=camera.position.z+pVel.z*dt;
   let ny=camera.position.y+pVel.y*dt;
   nx=Math.max(-53,Math.min(53,nx));nz=Math.max(-33,Math.min(33,nz));
-
   onGround=false;
   collidables.forEach(function(v){
     const b=new THREE.Box3().setFromObject(v.mesh);
@@ -764,35 +653,29 @@ function updatePlayer(dt){
   });
   if(ny<1.7){ny=1.7;pVel.y=0;onGround=true;}
   camera.position.set(nx,ny,nz);
-
   if(socket&&socket.connected){socket.emit('playerMove',{x:camera.position.x,y:camera.position.y,z:camera.position.z,yaw:yaw,pitch:pitch});}
-
   const moving=!S.dashing&&(keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD']);
   if(moving&&onGround){gunModel.position.y=-0.18+Math.sin(S.time*10)*0.025;gunModel.rotation.z=Math.sin(S.time*5)*0.02;}
   else{gunModel.position.y+=(-(S.isADS?0.1:0.18)-gunModel.position.y)*0.18;gunModel.rotation.z*=0.9;}
   gunModel.position.x+=((S.isADS?0.0:0.18)-gunModel.position.x)*0.2;
   gunModel.position.z+=(-0.36-gunModel.position.z)*0.28;
   if(S.cdShift>0)S.cdShift=Math.max(0,S.cdShift-dt);if(S.cdE>0)S.cdE=Math.max(0,S.cdE-dt);
-  if(S.shield<S.maxShield)S.shield=Math.min(S.maxShield,S.shield+18*dt);
   if(S.reloading){S.reloadT-=dt;if(S.reloadT<=0)finishReload();}
   updateAbUI();updateHpUI();
   const targetFOV=S.isADS?FOV_ADS:FOV_NORMAL;camera.fov+=(targetFOV-camera.fov)*0.15;camera.updateProjectionMatrix();
 }
-
 function playerDie(){
   if(S.dead)return;S.dead=true;S.streak=0;S.deaths++;
   document.getElementById('death').classList.add('on');updateCombo();
   setTimeout(function(){
-    S.dead=false;S.hp=S.maxHp;S.shield=S.maxShield;
+    S.dead=false;S.hp=S.maxHp;
     const sp=SPAWNS[Math.floor(Math.random()*SPAWNS.length)];
-    camera.position.copy(sp);
-    pVel.set(0,0,0);document.getElementById('death').classList.remove('on');updateHpUI();
+    camera.position.copy(sp);pVel.set(0,0,0);
+    document.getElementById('death').classList.remove('on');updateHpUI();
   },2600);
 }
-
 function updateHpUI(){
   document.getElementById('hp-bar').style.width=(S.hp/S.maxHp*100)+'%';
-  document.getElementById('sh-bar').style.width=(S.shield/S.maxShield*100)+'%';
   document.getElementById('hp-text').textContent=Math.ceil(S.hp);
   const lo=document.getElementById('low-hp');
   if(S.hp<70){lo.style.opacity=((70-S.hp)/70*.8).toString();lo.style.animation='lpulse 0.9s ease infinite';}
@@ -819,12 +702,9 @@ function addKFMulti(killer,victim){
 function showNotif(t){const c=document.getElementById('notifs');const n=document.createElement('div');n.className='notif';n.textContent=t;c.appendChild(n);setTimeout(function(){n.remove();},2500);}
 function getStreakName(s){return({3:'TRIPLE KILL',4:'QUAD KILL',5:'PENTA KILL',6:'LEGENDARY',7:'UNSTOPPABLE',8:'GODLIKE'}[s])||(s>=9?'⚡ RAMPAGE ⚡':null);}
 function updateCombo(){const n=document.getElementById('combo-n'),l=document.getElementById('combo-l');if(S.streak>=2){n.style.fontSize='46px';l.style.fontSize='11px';n.textContent=S.streak+'x';}else{n.style.fontSize='0';l.style.fontSize='0';}}
-
 function loop(){
-  requestAnimationFrame(loop);
-  const dt=Math.min(clock.getDelta(),.05);S.time+=dt;
-  updatePlayer(dt);updateParticles(dt);
-  renderer.render(scene,camera);
+  requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);S.time+=dt;
+  updatePlayer(dt);updateParticles(dt);renderer.render(scene,camera);
 }
 function setupInput(){
   canvas.addEventListener('click',function(){if(document.pointerLockElement!==canvas)canvas.requestPointerLock();});

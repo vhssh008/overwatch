@@ -16,7 +16,7 @@ io.on('connection', (socket) => {
 
   players[socket.id] = {
     id: socket.id,
-    x: 0, y: 1.7, z: 25,
+    x: 0, y: 1.7, z: 0,
     yaw: 0, pitch: 0,
     hp: 200,
     name: '플레이어',
@@ -46,8 +46,10 @@ io.on('connection', (socket) => {
     const target = players[data.targetId];
     if(!target || target.dead) return;
 
-    target.hp -= data.damage;
+    // 데미지를 서버에서 직접 처리
+    target.hp = Math.max(0, target.hp - data.damage);
 
+    // 모든 클라이언트에게 실제 HP 전송
     io.emit('playerDamaged', {
       targetId: data.targetId,
       damage: data.damage,

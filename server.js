@@ -44,7 +44,7 @@ io.on('connection', (socket) => {
 
   socket.on('playerHit', (data) => {
     const target = players[data.targetId];
-    if(!target || target.dead) return; // 이미 죽은 상태면 무시
+    if(!target || target.dead) return;
 
     target.hp -= data.damage;
 
@@ -55,14 +55,13 @@ io.on('connection', (socket) => {
     });
 
     if(target.hp <= 0 && !target.dead){
-      target.dead = true; // 죽음 처리 즉시 잠금
+      target.dead = true;
       io.emit('playerKilled', {
         killerId: data.shooterId,
         killerName: data.shooterName || '???',
         victimId: data.targetId,
         victimName: target.name || '???'
       });
-      // 2.6초 후 리스폰
       setTimeout(() => {
         if(players[data.targetId]){
           players[data.targetId].hp = 200;
@@ -70,6 +69,11 @@ io.on('connection', (socket) => {
         }
       }, 2600);
     }
+  });
+
+  // 수류탄 폭발 동기화
+  socket.on('grenadeExplode', (data) => {
+    socket.broadcast.emit('grenadeExplode', data);
   });
 
   socket.on('disconnect', () => {
